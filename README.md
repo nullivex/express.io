@@ -81,32 +81,22 @@ Sessions work automatically, just set them up like normal using express.
 app.use(express.session({secret: 'express.io makes me happy'}));
 ```
 
-**Please note** that the SocketIO session support is given by using the SocketIO authorization handler. Thus, if there 
-is a need to implement your own authorization it needs to populate the session similar to the default authorization
-handler provided by Express.IO
+**Please note** that the SocketIO session support is given by using the SocketIO 
+authorization handler. Thus, if there is a need to implement your own authorization
+it should use the existing authorization handler and wrap it.
 
-Here is a small example of a custom handler
+Here is a small example of a custom handler that uses passport to validate socket
+requests except when on the login page.
 
 ```js
-//use passport to authenticate our socket.io connections
-  //  NOTICE: to keep this working with express.io we must expose the session ourselves
+  //use passport to authenticate our socket.io connections
+  var ioAuthorization = app.io.get("authorization")
   app.io.set("authorization",function(data,accept){
-    var cookieParser = express.cookieParser(app.config.get("session.secret"))
-      , req = {headers:{cookie:data.headers.cookie}}
-      , session_id
-    cookieParser(req,{},function(err){
-      if(err) throw err
-      session_id = req.signedCookies[app.config.get("session.key")]
-      session_store.get(session_id,function(err,session){
-        if(err) throw err
-        //THIS SETS THE SESSION FOR EXPRESS.IO TO WORK
-        var connect = require("../node_modules/express.io/node_modules/express/node_modules/connect")
-        data.sessionID = session_id
-        data.session = new connect.session.Session(data,session)
-        //now validate our request
-        if(!session[passport._key][passport._userProperty] && !data.headers.referer.match(/login/)) accept(null,false)
-        else accept(null,true)
-      })
+    ioAuthorization(data,function(err,res){
+      if(null !== err) accept(err,res)
+      if(!data.session[passport._key][passport._userProperty] && !data.headers.referer.match(/login/)){
+        accept(null,false)
+      } else accept(null,true)
     })
   })
 ```
